@@ -44,6 +44,10 @@ Strategies
   
 #. ***Book Keeping***: Try using Dask Diagnostics for verbose. Profilers.
 
+***Why not implement Dask?***
+Reference: https://github.com/dask/distributed/issues/2787
+Issues with h5py dataset object serializing- so they are unable to be pickled easily. There are work arounds, but further incompatability makes it tough to reconcile for every Pycroscopy class built on pyUSID.
+
 2. mpi4py+joblib
 ----------------
 Strategies
