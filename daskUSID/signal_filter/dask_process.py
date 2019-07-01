@@ -339,11 +339,10 @@ class DaskProcess(BaseProcess):
         #self.dtype for dtype (Dask likes to change this)
         #from_delayed(value, shape, dtype[, name])
         #Dask is not compatible with HDF5
-        self.data = da.from_array(self.h5_main, chunks='auto')
-        #send data to cluster?
-        #self.client.scatter(self.data)
-
+        self.data = da.from_array(self.h5_main, chunks=self.h5_main.chunks)
         # Add any other necessary code here
+
+
 
     def compute(self, override=False, *args, **kwargs):
         """
@@ -401,15 +400,17 @@ class DaskProcess(BaseProcess):
                 '\tThis class does NOT support interruption and resuming of computations.\n'
                 '\tIn order to enable this feature, simply implement the _get_existing_datasets() function')
 
-        self._read_data_chunk()
-        #self.data = da.from_array(self.h5_main, chunks='auto')
+        #self._read_data_chunk()
+        self.data = da.from_array(self.h5_main, chunks=self.h5_main.chunks)
 
         # ################################################################################
 
-        client = Client(processes=self.threading)
-        results = self.data.map_blocks(self._unit_computation, dtype=self.dtype, *args, **kwargs)
-        self.data = results.compute()
-        self._write_results_chunk()
+        #client = Client(processes=self.threading)
+        client = Client()
+        results = self.data.map_blocks(self._unit_computation, dtype= self.data.dtype, *args, **kwargs)
+        data = results.compute()
+        self.data = data
+        #self._write_results_chunk()
 
         client.close()
 

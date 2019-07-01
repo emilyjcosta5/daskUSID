@@ -30,7 +30,7 @@ class BaseProcess(object):
     only need to specify application-relevant code for processing the data.
     """
 
-    def __init__(self, h5_main, *args, verbose=False, **kwargs):
+    def __init__(self, h5_main, *args, verbose=False, threading=False, **kwargs):
         """
         Parameters
         ----------
@@ -48,9 +48,10 @@ class BaseProcess(object):
             raise ValueError('Provided dataset is not a "Main" dataset with necessary ancillary datasets')
 
         # Saving these as properties of the object:
+        #self.h5_main_chunks = h
         self.h5_main = USIDataset(h5_main)
         self.verbose = verbose
-        #self.threading = threading #set false for distributed
+        self.threading = threading #set false for distributed
         self.dtype = h5_main.dtype #to redo dtype after dask array messes with it
 
 
@@ -337,11 +338,14 @@ class DaskProcess(BaseProcess):
         """
         #self.dtype for dtype (Dask likes to change this)
         #from_delayed(value, shape, dtype[, name])
+        #Dask is not compatible with HDF5
         self.data = da.from_array(self.h5_main, chunks='auto')
         #send data to cluster?
         #self.client.scatter(self.data)
 
         # Add any other necessary code here
+
+
 
     def compute(self, override=False, *args, **kwargs):
         """
@@ -399,11 +403,27 @@ class DaskProcess(BaseProcess):
                 '\tThis class does NOT support interruption and resuming of computations.\n'
                 '\tIn order to enable this feature, simply implement the _get_existing_datasets() function')
 
-        #self._read_data_chunk()
-        self.data = da.from_array(self.h5_main, chunks='auto')
+        self._read_data_chunk()
+        #self.data = da.from_array(self.h5_main, chunks='auto')
 
         # ################################################################################
+        def inc(sum):
+            return sum + 1
 
+        client = Client(processes=self.threading)
+        data = self.data
+        results = data.map_blocks(inc, dtype=self.dtype, *args, **kwargs)
+        data = results.compute()
+        self.data = data
+        #self._write_results_chunk()
+
+        client.close()
+
+        self.h5_main.file.flush()
+
+        return self.h5_results_grp
+
+"""
         client = Client(processes=False)
         if self.verbose:
             print('Core info {}'.format(client.ncores()))
@@ -422,7 +442,7 @@ class DaskProcess(BaseProcess):
 
         if self.verbose:
             print('Profiling info: {}'.format(client.profile()))
-            visualize([cprof, rprof])
+            visualize([cprof, rprof]) """
 
         # ################################################################################
         # ONCE YOU GET THE BASIC COMPUTATION TO WORK CORRECTLY, THINK ABOUT
@@ -432,11 +452,7 @@ class DaskProcess(BaseProcess):
         # ALREADY. HOWEVER, THIS WILL NECESSITATE ALL THE UGLY BOOK-KEEPING AGAIN.
         # MAYBE THE ANSWER IS THAT READING FEW POSITIONS AT A TIME IS A NECESSARY EVIL
 
-        client.close()
 
-        self.h5_main.file.flush()
-
-        return self.h5_results_grp
 
 
 class Process(BaseProcess):

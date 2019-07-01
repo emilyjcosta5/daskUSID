@@ -23,6 +23,7 @@ from gmode_utils import test_filter
 # IMPORTING FROM OUR OWN COPY OF THE PROCESS CLASS HERE INSTEAD OF WHAT IS IN PYUSID
 # REPLACE Process with DaskProcess
 from dask_process import DaskProcess
+import dask.array as da
 # ######################################################################################################################
 # TODO: correct implementation of num_pix
 
@@ -333,11 +334,13 @@ class SignalFilter(DaskProcess):
         if self.noise_threshold is not None:
             self.h5_noise_floors = self.h5_results_grp['Noise_Floors']
 
-    def _write_results_chunk(self):
-        """
-        Writes data chunks back to the file
-        """
+    """
 
+    def _write_results_chunk(self):
+        
+        Writes data chunks back to the file
+        
+        
         pos_slice = slice(self._start_pos, self._end_pos)
 
         if self.write_condensed:
@@ -358,8 +361,10 @@ class SignalFilter(DaskProcess):
 
         # Now update the start position
         self._start_pos = self._end_pos
+        
+    """
 
-    def _unit_computation(self, *args, **kwargs):
+    def _unit_computation(self, chunk, *args, **kwargs):
         """
         Processing per chunk of the dataset
         Parameters
@@ -370,31 +375,33 @@ class SignalFilter(DaskProcess):
             Not used
         """
         # get FFT of the entire data chunk
-        self.data = np.fft.fftshift(np.fft.fft(self.data, axis=1), axes=1)
-
+        return np.fft.fftshift(np.fft.fft(chunk, axis=1), axes=1)
+"""
         if self.noise_threshold is not None:
-            self.noise_floors = get_noise_floor(self.data, self.noise_threshold)
-            #self.noise_floors = parallel_compute(self.data, get_noise_floor, cores=self._cores,
+            self.noise_floors = get_noise_floor(chunk, self.noise_threshold)
+            #self.noise_floors = parallel_compute(chunk, get_noise_floor, cores=self._cores,
             #                                     func_args=[self.noise_threshold],
             #                                     verbose=self.verbose)
 
         if isinstance(self.composite_filter, np.ndarray):
             # multiple fft of data with composite filter
-            self.data *= self.composite_filter
+            chunk *= self.composite_filter
 
         if self.noise_threshold is not None:
             # apply thresholding
-            self.data[np.abs(self.data) < np.tile(np.atleast_2d(self.noise_floors), self.data.shape[1])] = 1E-16
+            chunk[np.abs(chunk) < np.tile(np.atleast_2d(self.noise_floors), chunk.shape[1])] = 1E-16
 
         if self.write_condensed:
             # set self.condensed_data here
-            self.condensed_data = self.data[:, self.hot_inds]
+            self.condensed_data = chunk[:, self.hot_inds]
 
         if self.write_filtered:
             # take inverse FFT
-            self.filtered_data = np.real(np.fft.ifft(np.fft.ifftshift(self.data, axes=1), axis=1))
+            self.filtered_data = np.real(np.fft.ifft(np.fft.ifftshift(chunk, axes=1), axis=1))
             if self.phase_rad > 0:
                 # TODO: implement phase compensation
                 # do np.roll on data
                 # self.data = np.roll(self.data, 0, axis=1)
                 pass
+"""
+
